@@ -1,31 +1,103 @@
-name: Release Simulator Build
+name: Build & Release Simulator App from Single Swift File
 
 on:
   push:
     tags:
-      - 'V*'                # 仅匹配以大写 V 开头的 tag，例如 V1.0.0
+      - 'V*'               # 只响应 V 开头的 tag，如 V1.0.0
 
 jobs:
   build-and-release:
-    runs-on: macos-14       # 使用最新 macOS 环境（M1），也可用 macos-13
+    runs-on: macos-14      # 或 macos-13，都自带 Xcode 和 Homebrew
+    env:
+      APP_NAME: DemoApp            # 最终生成的 .app 名称
+      SCHEME_NAME: DemoApp
+      PROJECT_NAME: DemoApp
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 提取版本号（去掉前缀 V）
+      # 1️⃣ 提取版本号（去掉前缀 V）
       - name: Extract version
         id: version
         run: |
-          TAG_NAME=${GITHUB_REF_NAME}           # 例如 V1.2.3
-          VERSION=${TAG_NAME#V}                 # 去掉前缀 V，得到 1.2.3
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          TAG=${GITHUB_REF_NAME}          # 例 V1.0.0
+          VERSION=${TAG#V}                # 得到 1.0.0
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Extracted version: $VERSION"
 
+      # 2️⃣ 安装 xcodegen
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      # 3️⃣ 生成最小 Info.plist（模拟器包必须）
+      - name: Create Info.plist
+        run: |
+          cat > Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${{ steps.version.outputs.version }}</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+      # 4️⃣ 生成 xcodegen 项目描述文件
+      - name: Generate project.yml
+        run: |
+          cat > project.yml << 'EOF'
+          name: DemoApp
+          options:
+            bundleIdPrefix: com.example
+            deploymentTarget:
+              iOS: "16.0"
+          targets:
+            DemoApp:
+              type: application
+              platform: iOS
+              sources:
+                - path: .
+                  includes:
+                    - "1.swift"
+              settings:
+                base:
+                  INFOPLIST_FILE: Info.plist
+                  PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
+                  SWIFT_VERSION: "5.0"
+          EOF
+
+      # 5️⃣ 用 xcodegen 生成 .xcodeproj
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml --use-cache
+
+      # 6️⃣ 构建模拟器版本 .app（无签名）
       - name: Build for iOS Simulator
         run: |
-          # 请将 YourScheme 替换为你的 Xcode scheme 名称
           xcodebuild \
-            -scheme YourScheme \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME_NAME" \
             -sdk iphonesimulator \
             -configuration Release \
             -derivedDataPath ./build \
@@ -33,18 +105,21 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      # 7️⃣ 将 .app 打包成 .zip
       - name: Package as ZIP
+        id: package
         run: |
           APP_PATH=$(find ./build/Build/Products/Release-iphonesimulator -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "::error::App bundle not found"
+            echo "::error::.app not found"
             exit 1
           fi
-          ZIP_NAME="YourApp-${{ steps.version.outputs.version }}-simulator.zip"
+          ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator.zip"
           zip -r "$ZIP_NAME" "$APP_PATH"
-          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
-        id: package
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "Created $ZIP_NAME"
 
+      # 8️⃣ 上传到当前 Tag 对应的 Release
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
