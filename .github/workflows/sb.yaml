@@ -60,7 +60,7 @@ jobs:
           </plist>
           EOF
 
-      - name: Generate project.yml (with compatible objectVersion)
+      - name: Generate project.yml
         run: |
           cat > project.yml << 'EOF'
           name: DemoApp
@@ -68,7 +68,6 @@ jobs:
             bundleIdPrefix: com.example
             deploymentTarget:
               iOS: "16.0"
-            objectVersion: 56          # <-- 关键：让 Xcode 15 能打开
           targets:
             DemoApp:
               type: application
@@ -85,7 +84,10 @@ jobs:
           EOF
 
       - name: Generate Xcode project
-        run: xcodegen generate --spec project.yml --use-cache
+        run: |
+          xcodegen generate --spec project.yml
+          # 将项目格式从 77（Xcode 16）降为 56（Xcode 14），兼容 Xcode 15
+          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/g' DemoApp.xcodeproj/project.pbxproj
 
       - name: Build for iOS Simulator
         run: |
