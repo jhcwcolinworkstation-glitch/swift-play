@@ -20,14 +20,14 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          TAG=${GITHUB_REF_NAME}
-          VERSION=${TAG#V}
+          TAG=${GITHUB_REF_NAME}          # 例 V1.0.0
+          VERSION=${TAG#V}                # 得到 1.0.0
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install xcodegen
         run: brew install xcodegen
 
-      - name: Create Info.plist
+      - name: Create Info.plist (iPad support + full screen)
         run: |
           cat > Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -52,9 +52,20 @@ jobs:
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
+              <key>UIDeviceFamily</key>
+              <array>
+                  <integer>1</integer>
+                  <integer>2</integer>
+              </array>
               <key>UISupportedInterfaceOrientations</key>
               <array>
                   <string>UIInterfaceOrientationPortrait</string>
+              </array>
+              <key>UISupportedInterfaceOrientations~ipad</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
               </array>
           </dict>
           </plist>
@@ -83,10 +94,10 @@ jobs:
                   SWIFT_VERSION: "5.0"
           EOF
 
-      - name: Generate Xcode project
+      - name: Generate Xcode project and fix format
         run: |
           xcodegen generate --spec project.yml
-          # 将项目格式从 77（Xcode 16）降为 56（Xcode 14），兼容 Xcode 15
+          # 将项目格式从 77（Xcode 16）降为 56（Xcode 14），兼容 GitHub Actions 的 Xcode 15.4
           sed -i '' 's/objectVersion = 77;/objectVersion = 56;/g' DemoApp.xcodeproj/project.pbxproj
 
       - name: Build for iOS Simulator
