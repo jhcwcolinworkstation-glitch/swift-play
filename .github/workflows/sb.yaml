@@ -3,13 +3,13 @@ name: Build & Release Simulator App from Single Swift File
 on:
   push:
     tags:
-      - 'V*'               # 只响应 V 开头的 tag，如 V1.0.0
+      - 'V*'
 
 jobs:
   build-and-release:
-    runs-on: macos-14      # 或 macos-13，都自带 Xcode 和 Homebrew
+    runs-on: macos-14
     env:
-      APP_NAME: DemoApp            # 最终生成的 .app 名称
+      APP_NAME: DemoApp
       SCHEME_NAME: DemoApp
       PROJECT_NAME: DemoApp
 
@@ -17,20 +17,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1️⃣ 提取版本号（去掉前缀 V）
       - name: Extract version
         id: version
         run: |
-          TAG=${GITHUB_REF_NAME}          # 例 V1.0.0
-          VERSION=${TAG#V}                # 得到 1.0.0
+          TAG=${GITHUB_REF_NAME}
+          VERSION=${TAG#V}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Extracted version: $VERSION"
 
-      # 2️⃣ 安装 xcodegen
       - name: Install xcodegen
         run: brew install xcodegen
 
-      # 3️⃣ 生成最小 Info.plist（模拟器包必须）
       - name: Create Info.plist
         run: |
           cat > Info.plist << 'EOF'
@@ -64,8 +60,7 @@ jobs:
           </plist>
           EOF
 
-      # 4️⃣ 生成 xcodegen 项目描述文件
-      - name: Generate project.yml
+      - name: Generate project.yml (with compatible objectVersion)
         run: |
           cat > project.yml << 'EOF'
           name: DemoApp
@@ -73,6 +68,7 @@ jobs:
             bundleIdPrefix: com.example
             deploymentTarget:
               iOS: "16.0"
+            objectVersion: 56          # <-- 关键：让 Xcode 15 能打开
           targets:
             DemoApp:
               type: application
@@ -88,11 +84,9 @@ jobs:
                   SWIFT_VERSION: "5.0"
           EOF
 
-      # 5️⃣ 用 xcodegen 生成 .xcodeproj
       - name: Generate Xcode project
         run: xcodegen generate --spec project.yml --use-cache
 
-      # 6️⃣ 构建模拟器版本 .app（无签名）
       - name: Build for iOS Simulator
         run: |
           xcodebuild \
@@ -105,7 +99,6 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      # 7️⃣ 将 .app 打包成 .zip
       - name: Package as ZIP
         id: package
         run: |
@@ -117,9 +110,7 @@ jobs:
           ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator.zip"
           zip -r "$ZIP_NAME" "$APP_PATH"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
-          echo "Created $ZIP_NAME"
 
-      # 8️⃣ 上传到当前 Tag 对应的 Release
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
