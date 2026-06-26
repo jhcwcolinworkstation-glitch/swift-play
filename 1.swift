@@ -7,7 +7,6 @@ import PhotosUI
 
 // MARK: - 数据模型
 
-/// 消息模型
 struct Message: Identifiable, Codable {
     let id: String
     let role: Role
@@ -34,13 +33,12 @@ struct Message: Identifiable, Codable {
     }
 }
 
-/// 附件模型
 struct Attachment: Identifiable, Codable {
     let id: String
     let name: String
     let type: String
-    var data: String?         // 文本内容或 base64 数据
-    var fullDataUrl: String?  // 图片的完整 data URL
+    var data: String?
+    var fullDataUrl: String?
     let size: Int
     let isImage: Bool
     let isText: Bool
@@ -57,7 +55,6 @@ struct Attachment: Identifiable, Codable {
     }
 }
 
-/// 对话模型
 struct Chat: Identifiable, Codable {
     let id: String
     var title: String
@@ -267,7 +264,7 @@ class AppState: ObservableObject {
     }
 
     func fetchMemories() {
-        guard isCloudEnabled && !lcAppId.isEmpty && !lcMasterKey.isEmpty else {
+        guard isCloudEnabled, !lcAppId.isEmpty, !lcMasterKey.isEmpty else {
             memories = []
             return
         }
@@ -380,7 +377,6 @@ class APIService {
             }
         }
 
-        // 附加当前附件（图片）
         if !appState.currentAttachments.isEmpty {
             if let lastIdx = apiMessages.indices.last,
                var last = apiMessages[lastIdx] as? [String: Any],
@@ -402,7 +398,6 @@ class APIService {
             }
         }
 
-        // Canvas 上下文
         if appState.canvasEnabled && !appState.canvasCode.isEmpty {
             let canvasContext = "\n\n【Canvas代码区域】\n\(appState.canvasCode)\n"
             if let lastIdx = apiMessages.indices.last,
@@ -437,8 +432,7 @@ class APIService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
-        let session = URLSession.shared
-        let task = session.dataTask(with: request) { data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 DispatchQueue.main.async { onComplete(.failure(error)) }
                 return
@@ -462,15 +456,11 @@ class APIService {
                        let delta = first["delta"] as? [String: Any] {
                         if let content = delta["content"] as? String {
                             fullContent += content
-                            DispatchQueue.main.async {
-                                onChunk(fullContent, reasoningContent)
-                            }
+                            DispatchQueue.main.async { onChunk(fullContent, reasoningContent) }
                         }
                         if let reasoning = delta["reasoning_content"] as? String {
                             reasoningContent += reasoning
-                            DispatchQueue.main.async {
-                                onChunk(fullContent, reasoningContent)
-                            }
+                            DispatchQueue.main.async { onChunk(fullContent, reasoningContent) }
                         }
                     }
                 }
@@ -495,7 +485,6 @@ class APIService {
 
         var request: URLRequest
         if let imageBase64 = imageBase64 {
-            // 图像编辑
             guard let url = URL(string: "\(baseURL)/images/edits") else { return nil }
             let boundary = UUID().uuidString
             var body = Data()
@@ -517,7 +506,6 @@ class APIService {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             request.httpBody = body
         } else {
-            // 图像生成
             guard let url = URL(string: "\(baseURL)/images/generations") else { return nil }
             let body: [String: Any] = [
                 "model": model,
@@ -614,7 +602,6 @@ class APIService {
 
 // MARK: - 视图组件
 
-/// WebView 渲染消息
 struct MessageWebView: UIViewRepresentable {
     let content: String
     let isDark: Bool
@@ -661,9 +648,7 @@ struct MessageWebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             webView.evaluateJavaScript("document.body.scrollHeight") { result, _ in
                 if let h = result as? CGFloat {
-                    DispatchQueue.main.async {
-                        self.parent.height = h
-                    }
+                    DispatchQueue.main.async { self.parent.height = h }
                 }
             }
         }
@@ -744,7 +729,6 @@ struct MessageWebView: UIViewRepresentable {
     }
 }
 
-/// 消息气泡
 struct MessageBubbleView: View {
     let message: Message
     let isDark: Bool
@@ -770,13 +754,6 @@ struct MessageBubbleView: View {
             VStack(alignment: .leading, spacing: 8) {
                 MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
                     .frame(height: max(40, webViewHeight))
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.onAppear {
-                                webViewHeight = max(40, geo.size.height)
-                            }
-                        }
-                    )
 
                 if let attachments = message.attachments, !attachments.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -819,9 +796,6 @@ struct MessageBubbleView: View {
                                         .frame(width: 120, height: 120)
                                         .clipShape(RoundedRectangle(cornerRadius: 8))
                                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                                        .onTapGesture {
-                                            // 大图浏览可扩展
-                                        }
                                 }
                             }
                         }
@@ -866,7 +840,7 @@ struct MessageBubbleView: View {
     }
 }
 
-/// 输入区域
+// MARK: - 输入区域（已优化高度对齐）
 struct InputAreaView: View {
     @ObservedObject var appState: AppState
     @Binding var inputText: String
@@ -878,11 +852,9 @@ struct InputAreaView: View {
     let onToggleImageMode: () -> Void
 
     @FocusState private var isFocused: Bool
-    @State private var height: CGFloat = 40
 
     var body: some View {
         VStack(spacing: 8) {
-            // 附件预览
             if !appState.currentAttachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -913,7 +885,6 @@ struct InputAreaView: View {
             }
 
             HStack(spacing: 8) {
-                // 模型选择
                 Menu {
                     ForEach(modelOptions, id: \.self) { model in
                         Button(action: { appState.selectedModel = model }) {
@@ -931,7 +902,6 @@ struct InputAreaView: View {
 
                 Spacer()
 
-                // 图像模式切换
                 Button(action: onToggleImageMode) {
                     Image(systemName: appState.isImageMode ? "photo.fill" : "photo")
                         .font(.caption)
@@ -945,7 +915,6 @@ struct InputAreaView: View {
             }
             .padding(.horizontal, 4)
 
-            // 输入框
             HStack(alignment: .bottom, spacing: 8) {
                 Button(action: onAttach) {
                     Image(systemName: "plus").font(.system(size: 18)).frame(width: 36, height: 36)
@@ -957,9 +926,11 @@ struct InputAreaView: View {
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
-                    .frame(minHeight: 36, maxHeight: 120)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(Color.gray.opacity(0.08)).clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .frame(minHeight: 36, maxHeight: 120)   // ← 总高度最小36，与按钮等高
+                    .background(Color.gray.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .focused($isFocused)
 
                 Button(action: onVoice) {
@@ -1011,7 +982,7 @@ struct InputAreaView: View {
     ]
 }
 
-/// 对话列表
+// MARK: - 对话列表
 struct ChatListView: View {
     @ObservedObject var appState: AppState
     @Binding var showingSidebar: Bool
@@ -1079,7 +1050,7 @@ struct ChatListView: View {
     }
 }
 
-/// 设置视图
+// MARK: - 设置视图
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -1283,7 +1254,7 @@ struct SettingsView: View {
     }
 }
 
-/// 图片选择器
+// MARK: - 图片选择器
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Binding var isPresented: Bool
@@ -1322,7 +1293,6 @@ struct ImagePicker: UIViewControllerRepresentable {
 }
 
 // MARK: - 主视图
-
 struct ContentView: View {
     @StateObject private var appState = AppState()
     @State private var inputText = ""
@@ -1338,7 +1308,6 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // 背景
                 let bgName = "\(appState.backgroundImageIndex).JPG"
                 (appState.isDarkMode ? Color.black : Color.white)
                     .ignoresSafeArea()
@@ -1350,7 +1319,6 @@ struct ContentView: View {
                             .ignoresSafeArea()
                     )
 
-                // 主内容
                 HStack(spacing: 0) {
                     if geometry.size.width > 768 {
                         ChatListView(appState: appState, showingSidebar: $showingSidebar)
@@ -1426,11 +1394,6 @@ struct ContentView: View {
 
     private func toggleImageMode() {
         appState.isImageMode.toggle()
-        if appState.isImageMode {
-            // 切换到图像模型列表
-        } else {
-            appState.isImageEditMode = false
-        }
     }
 
     private func sendMessage() {
@@ -1438,31 +1401,17 @@ struct ContentView: View {
         guard !text.isEmpty || !appState.currentAttachments.isEmpty else { return }
         guard let chatId = appState.activeChatId else { return }
 
-        // 图像模式处理
         if appState.isImageMode {
             sendImageMessage(prompt: text)
             return
         }
 
-        // Canvas 指令处理
         if text.hasPrefix("/canvas") {
-            let cmd = text.dropFirst(7).trimmingCharacters(in: .whitespaces)
-            if cmd.isEmpty && appState.currentAttachments.isEmpty {
-                appState.canvasEnabled = true
-                appState.canvasCode = ""
-                var chat = appState.getActiveChat()!
-                chat.canvasEnabled = true
-                chat.canvasCode = [""]
-                appState.updateChat(chat)
-                inputText = ""
-                return
-            } else {
-                appState.canvasEnabled = true
-                var chat = appState.getActiveChat()!
-                chat.canvasEnabled = true
-                if chat.canvasCode.isEmpty { chat.canvasCode = [""] }
-                appState.updateChat(chat)
-            }
+            appState.canvasEnabled = true
+            var chat = appState.getActiveChat()!
+            chat.canvasEnabled = true
+            if chat.canvasCode.isEmpty { chat.canvasCode = [""] }
+            appState.updateChat(chat)
         }
 
         let userMsg = Message(
@@ -1488,7 +1437,6 @@ struct ContentView: View {
             return
         }
 
-        // 准备历史消息（不含占位）
         var history = chat.messages.filter { $0.id != assistantMsg.id }
         if let last = history.last, last.role == .user, last.id == userMsg.id {
             var mutable = last
@@ -1496,9 +1444,7 @@ struct ContentView: View {
             history[history.count - 1] = mutable
         }
 
-        // Canvas 上下文
         if appState.canvasEnabled && !appState.canvasCode.isEmpty {
-            // 在最后一条用户消息后附加 canvas 内容
             if let lastIdx = history.indices.last, history[lastIdx].role == .user {
                 var last = history[lastIdx]
                 last.content += "\n\n【Canvas代码】\n\(appState.canvasCode)\n"
@@ -1521,7 +1467,6 @@ struct ContentView: View {
                     if case .failure(let error) = result {
                         appState.updateLastMessage("❌ 错误: \(error.localizedDescription)", in: chatId)
                     }
-                    // 解析 Canvas 替换指令
                     if let chat = appState.getActiveChat(), appState.canvasEnabled {
                         let lastMsg = chat.messages.last
                         if let content = lastMsg?.content {
@@ -1534,7 +1479,6 @@ struct ContentView: View {
     }
 
     private func parseCanvasReplace(_ content: String) {
-        // 简单解析 [replace] 指令，更新 canvasCode
         let pattern = #"\[replace\]\s*\nstart:(\d+)\s*\nend:(\d+)\s*\n```\n?([\s\S]*?)```"#
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
         let nsString = content as NSString
@@ -1542,7 +1486,6 @@ struct ContentView: View {
         guard !matches.isEmpty else { return }
 
         var lines = appState.canvasCode.components(separatedBy: "\n")
-        // 从后向前替换，避免索引偏移
         for match in matches.reversed() {
             let startStr = nsString.substring(with: match.range(at: 1))
             let endStr = nsString.substring(with: match.range(at: 2))
@@ -1607,8 +1550,6 @@ struct ContentView: View {
         isGenerating = false
         appState.isGenerating = false
     }
-
-    // MARK: - 语音录入
 
     private func toggleRecording() {
         if isRecording {
@@ -1676,7 +1617,6 @@ struct ContentView: View {
 }
 
 // MARK: - 聊天视图
-
 struct ChatView: View {
     @ObservedObject var appState: AppState
     @Binding var inputText: String
@@ -1690,7 +1630,6 @@ struct ChatView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部
             HStack {
                 Button(action: onToggleSidebar) {
                     Image(systemName: "line.3.horizontal").font(.system(size: 20))
@@ -1718,7 +1657,6 @@ struct ChatView: View {
                     .shadow(color: Color.black.opacity(0.05), radius: 4, y: 1)
             )
 
-            // 消息列表
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
@@ -1759,7 +1697,6 @@ struct ChatView: View {
                 }
             }
 
-            // 输入区域
             InputAreaView(
                 appState: appState,
                 inputText: $inputText,
@@ -1772,9 +1709,7 @@ struct ChatView: View {
             )
             .padding(.vertical, 8)
         }
-        .background(
-            appState.isDarkMode ? Color.black : Color.white
-        )
+        .background(appState.isDarkMode ? Color.black : Color.white)
     }
 
     private func handleRetry(_ message: Message) {
