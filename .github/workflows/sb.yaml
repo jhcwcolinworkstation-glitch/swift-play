@@ -1,4 +1,4 @@
-name: Build & Release Universal Simulator App
+name: Build & Release Simulator App (Universal, Liquid Glass)
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: macos-14
+    runs-on: macos-14          # 当前 GitHub Actions 提供的最新 macOS
     env:
+      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer   # 使用 Xcode 16（iOS 18 SDK）
       APP_NAME: DemoApp
       SCHEME_NAME: DemoApp
       PROJECT_NAME: DemoApp
@@ -27,8 +28,8 @@ jobs:
       - name: Install xcodegen
         run: brew install xcodegen
 
-      # 通用 Info.plist：同时支持 iPhone 和 iPad
-      - name: Create universal Info.plist
+      # 通用 Info.plist：支持 iPhone + iPad，且允许 iPad 多任务窗口（液态玻璃）
+      - name: Create universal Info.plist (with multitasking support)
         run: |
           cat > Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -53,18 +54,21 @@ jobs:
               <string>1</string>
               <key>LSRequiresIPhoneOS</key>
               <true/>
-              <!-- 同时包含 1(iPhone) 和 2(iPad) -->
               <key>UIDeviceFamily</key>
               <array>
-                  <integer>1</integer>
-                  <integer>2</integer>
+                  <integer>1</integer>   <!-- iPhone -->
+                  <integer>2</integer>   <!-- iPad -->
               </array>
-              <!-- iPhone 方向 -->
+              <!-- 关键：允许 iPad 多任务（Slide Over / Split View），这就是“液态玻璃”效果的基础 -->
+              <key>UIRequiresFullScreen</key>
+              <false/>
+              <!-- 方向支持 -->
               <key>UISupportedInterfaceOrientations</key>
               <array>
                   <string>UIInterfaceOrientationPortrait</string>
+                  <string>UIInterfaceOrientationLandscapeLeft</string>
+                  <string>UIInterfaceOrientationLandscapeRight</string>
               </array>
-              <!-- iPad 额外方向 -->
               <key>UISupportedInterfaceOrientations~ipad</key>
               <array>
                   <string>UIInterfaceOrientationPortrait</string>
@@ -96,7 +100,7 @@ jobs:
                   INFOPLIST_FILE: Info.plist
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
                   SWIFT_VERSION: "5.0"
-                  TARGETED_DEVICE_FAMILY: "1,2"   # 保证编译时也传入设备族
+                  TARGETED_DEVICE_FAMILY: "1,2"
           EOF
 
       - name: Generate Xcode project and fix format
@@ -104,7 +108,7 @@ jobs:
           xcodegen generate --spec project.yml
           sed -i '' 's/objectVersion = 77;/objectVersion = 56;/g' DemoApp.xcodeproj/project.pbxproj
 
-      - name: Build for iOS Simulator (universal)
+      - name: Build for iOS Simulator (universal, latest SDK)
         run: |
           xcodebuild \
             -project "$PROJECT_NAME.xcodeproj" \
