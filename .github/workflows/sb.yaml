@@ -1,4 +1,4 @@
-name: Build & Release Simulator App from Single Swift File
+name: Build & Release Simulator App (iPhone + iPad)
 
 on:
   push:
@@ -20,16 +20,17 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          TAG=${GITHUB_REF_NAME}          # 例 V1.0.0
-          VERSION=${TAG#V}                # 得到 1.0.0
+          TAG=${GITHUB_REF_NAME}
+          VERSION=${TAG#V}
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Install xcodegen
         run: brew install xcodegen
 
-      - name: Create Info.plist (iPad support + full screen)
+      # 为 iPhone 创建专用 Info.plist
+      - name: Create Info.plist (iPhone)
         run: |
-          cat > Info.plist << 'EOF'
+          cat > Info-iphone.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -55,6 +56,43 @@ jobs:
               <key>UIDeviceFamily</key>
               <array>
                   <integer>1</integer>
+              </array>
+              <key>UISupportedInterfaceOrientations</key>
+              <array>
+                  <string>UIInterfaceOrientationPortrait</string>
+              </array>
+          </dict>
+          </plist>
+          EOF
+
+      # 为 iPad 创建专用 Info.plist
+      - name: Create Info.plist (iPad)
+        run: |
+          cat > Info-ipad.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>$(EXECUTABLE_NAME)</string>
+              <key>CFBundleIdentifier</key>
+              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>$(PRODUCT_NAME)</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${{ steps.version.outputs.version }}</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+              <key>LSRequiresIPhoneOS</key>
+              <true/>
+              <key>UIDeviceFamily</key>
+              <array>
                   <integer>2</integer>
               </array>
               <key>UISupportedInterfaceOrientations</key>
@@ -89,7 +127,6 @@ jobs:
                     - "1.swift"
               settings:
                 base:
-                  INFOPLIST_FILE: Info.plist
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
                   SWIFT_VERSION: "5.0"
           EOF
@@ -97,37 +134,69 @@ jobs:
       - name: Generate Xcode project and fix format
         run: |
           xcodegen generate --spec project.yml
-          # 将项目格式从 77（Xcode 16）降为 56（Xcode 14），兼容 GitHub Actions 的 Xcode 15.4
           sed -i '' 's/objectVersion = 77;/objectVersion = 56;/g' DemoApp.xcodeproj/project.pbxproj
 
-      - name: Build for iOS Simulator
+      # ----- 构建 iPhone 版本 -----
+      - name: Build iPhone version
         run: |
           xcodebuild \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME_NAME" \
             -sdk iphonesimulator \
             -configuration Release \
-            -derivedDataPath ./build \
+            -derivedDataPath ./build-iphone \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO \
+            INFOPLIST_FILE="Info-iphone.plist" \
+            TARGETED_DEVICE_FAMILY=1
 
-      - name: Package as ZIP
-        id: package
+      - name: Package iPhone as ZIP
+        id: package-iphone
         run: |
-          APP_PATH=$(find ./build/Build/Products/Release-iphonesimulator -name "*.app" -type d | head -1)
+          APP_PATH=$(find ./build-iphone/Build/Products/Release-iphonesimulator -name "*.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
-            echo "::error::.app not found"
+            echo "::error::iPhone .app not found"
             exit 1
           fi
-          ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator.zip"
+          ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator-iphone.zip"
           zip -r "$ZIP_NAME" "$APP_PATH"
-          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "iphone_zip=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
+      # ----- 构建 iPad 版本 -----
+      - name: Build iPad version
+        run: |
+          xcodebuild \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME_NAME" \
+            -sdk iphonesimulator \
+            -configuration Release \
+            -derivedDataPath ./build-ipad \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            INFOPLIST_FILE="Info-ipad.plist" \
+            TARGETED_DEVICE_FAMILY=2
+
+      - name: Package iPad as ZIP
+        id: package-ipad
+        run: |
+          APP_PATH=$(find ./build-ipad/Build/Products/Release-iphonesimulator -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::iPad .app not found"
+            exit 1
+          fi
+          ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator-ipad.zip"
+          zip -r "$ZIP_NAME" "$APP_PATH"
+          echo "ipad_zip=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      # 同时上传两个 zip
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: ${{ steps.package.outputs.zip_name }}
+          files: |
+            ${{ steps.package-iphone.outputs.iphone_zip }}
+            ${{ steps.package-ipad.outputs.ipad_zip }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
