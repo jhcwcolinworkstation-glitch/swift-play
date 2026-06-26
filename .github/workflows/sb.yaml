@@ -1,4 +1,4 @@
-name: Build & Release Simulator App (Universal, Liquid Glass)
+name: Build & Release iOS App
 
 on:
   push:
@@ -7,135 +7,158 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: macos-14          # 当前 GitHub Actions 提供的最新 macOS
+    runs-on: macos-latest
+
     env:
-      DEVELOPER_DIR: /Applications/Xcode_16.app/Contents/Developer   # 使用 Xcode 16（iOS 18 SDK）
       APP_NAME: DemoApp
-      SCHEME_NAME: DemoApp
       PROJECT_NAME: DemoApp
+      SCHEME_NAME: DemoApp
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Extract version
+      - name: Extract Version
         id: version
         run: |
-          TAG=${GITHUB_REF_NAME}
-          VERSION=${TAG#V}
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          VERSION=${GITHUB_REF_NAME#V}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Install xcodegen
+      - name: Select Latest Xcode
+        run: |
+          sudo xcode-select -s $(ls -d /Applications/Xcode*.app | sort -V | tail -1)/Contents/Developer
+          xcodebuild -version
+
+      - name: Install XcodeGen
         run: brew install xcodegen
 
-      # 通用 Info.plist：支持 iPhone + iPad，且允许 iPad 多任务窗口（液态玻璃）
-      - name: Create universal Info.plist (with multitasking support)
+      - name: Create Info.plist
         run: |
-          cat > Info.plist << 'EOF'
+          cat > Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
-              <key>CFBundleDevelopmentRegion</key>
-              <string>en</string>
-              <key>CFBundleExecutable</key>
-              <string>$(EXECUTABLE_NAME)</string>
-              <key>CFBundleIdentifier</key>
-              <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>$(PRODUCT_NAME)</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${{ steps.version.outputs.version }}</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-              <key>LSRequiresIPhoneOS</key>
-              <true/>
-              <key>UIDeviceFamily</key>
-              <array>
-                  <integer>1</integer>   <!-- iPhone -->
-                  <integer>2</integer>   <!-- iPad -->
-              </array>
-              <!-- 关键：允许 iPad 多任务（Slide Over / Split View），这就是“液态玻璃”效果的基础 -->
-              <key>UIRequiresFullScreen</key>
+
+          <key>CFBundleExecutable</key>
+          <string>\$(EXECUTABLE_NAME)</string>
+
+          <key>CFBundleIdentifier</key>
+          <string>\$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+          <key>CFBundleName</key>
+          <string>\$(PRODUCT_NAME)</string>
+
+          <key>CFBundlePackageType</key>
+          <string>APPL</string>
+
+          <key>CFBundleShortVersionString</key>
+          <string>${{ steps.version.outputs.version }}</string>
+
+          <key>CFBundleVersion</key>
+          <string>1</string>
+
+          <key>LSRequiresIPhoneOS</key>
+          <true/>
+
+          <key>UIDeviceFamily</key>
+          <array>
+              <integer>1</integer>
+              <integer>2</integer>
+          </array>
+
+          <key>UIRequiresFullScreen</key>
+          <true/>
+
+          <key>UILaunchScreen</key>
+          <dict/>
+
+          <key>UIApplicationSceneManifest</key>
+          <dict>
+              <key>UIApplicationSupportsMultipleScenes</key>
               <false/>
-              <!-- 方向支持 -->
-              <key>UISupportedInterfaceOrientations</key>
-              <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-              </array>
-              <key>UISupportedInterfaceOrientations~ipad</key>
-              <array>
-                  <string>UIInterfaceOrientationPortrait</string>
-                  <string>UIInterfaceOrientationLandscapeLeft</string>
-                  <string>UIInterfaceOrientationLandscapeRight</string>
-              </array>
+          </dict>
+
+          <key>UISupportedInterfaceOrientations</key>
+          <array>
+              <string>UIInterfaceOrientationPortrait</string>
+          </array>
+
+          <key>UISupportedInterfaceOrientations~ipad</key>
+          <array>
+              <string>UIInterfaceOrientationPortrait</string>
+              <string>UIInterfaceOrientationLandscapeLeft</string>
+              <string>UIInterfaceOrientationLandscapeRight</string>
+          </array>
+
           </dict>
           </plist>
           EOF
 
-      - name: Generate project.yml
+      - name: Create project.yml
         run: |
-          cat > project.yml << 'EOF'
+          cat > project.yml <<EOF
           name: DemoApp
+
           options:
             bundleIdPrefix: com.example
-            deploymentTarget:
-              iOS: "16.0"
+
           targets:
             DemoApp:
               type: application
               platform: iOS
+
+              deploymentTarget:
+                iOS: "18.0"
+
               sources:
                 - path: .
                   includes:
                     - "1.swift"
+
               settings:
                 base:
                   INFOPLIST_FILE: Info.plist
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
-                  SWIFT_VERSION: "5.0"
+                  SWIFT_VERSION: "6.0"
+
                   TARGETED_DEVICE_FAMILY: "1,2"
+
+                  SUPPORTS_MACCATALYST: NO
+
+                  SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+
+                  GENERATE_INFOPLIST_FILE: NO
+
+                  IPHONEOS_DEPLOYMENT_TARGET: "18.0"
           EOF
 
-      - name: Generate Xcode project and fix format
-        run: |
-          xcodegen generate --spec project.yml
-          sed -i '' 's/objectVersion = 77;/objectVersion = 56;/g' DemoApp.xcodeproj/project.pbxproj
+      - name: Generate Project
+        run: xcodegen generate
 
-      - name: Build for iOS Simulator (universal, latest SDK)
+      - name: Build
         run: |
           xcodebuild \
-            -project "$PROJECT_NAME.xcodeproj" \
-            -scheme "$SCHEME_NAME" \
+            -project DemoApp.xcodeproj \
+            -scheme DemoApp \
             -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
             -configuration Release \
-            -derivedDataPath ./build \
-            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_IDENTITY="" \
+            -derivedDataPath build
 
-      - name: Package as ZIP
-        id: package
+      - name: Zip App
+        id: zip
         run: |
-          APP_PATH=$(find ./build/Build/Products/Release-iphonesimulator -name "*.app" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "::error::.app not found"
-            exit 1
-          fi
-          ZIP_NAME="$APP_NAME-${{ steps.version.outputs.version }}-simulator.zip"
-          zip -r "$ZIP_NAME" "$APP_PATH"
-          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          APP=$(find build -name "*.app" | head -1)
 
-      - name: Upload to Release
+          zip -r DemoApp.zip "$APP"
+
+          echo "file=DemoApp.zip" >> $GITHUB_OUTPUT
+
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          files: ${{ steps.package.outputs.zip_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: ${{ steps.zip.outputs.file }}
