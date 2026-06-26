@@ -2,7 +2,6 @@ import SwiftUI
 
 @main
 struct DemoApp: App {
-    // 持久化存储用户的显示模式偏好（默认跟随系统）
     @AppStorage("userColorScheme") private var userColorScheme: String = "system"
 
     var body: some Scene {
@@ -12,12 +11,14 @@ struct DemoApp: App {
         }
     }
 
-    // 将字符串转换为 ColorScheme?
     private var resolvedColorScheme: ColorScheme? {
         switch userColorScheme {
-        case "light": return .light
-        case "dark":  return .dark
-        default:      return nil  // nil 表示跟随系统
+        case "light":
+            return .light
+        case "dark":
+            return .dark
+        default:
+            return nil
         }
     }
 }
@@ -36,6 +37,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             Form {
+
                 // 外观切换
                 Section("外观") {
                     Picker("显示模式", selection: $userColorScheme) {
@@ -50,7 +52,7 @@ struct ContentView: View {
                 Section("文本示例") {
                     Text(message)
                         .font(.title)
-                        .foregroundColor(isOn ? .primary : .secondary)
+                        .foregroundStyle(isOn ? .primary : .secondary)
 
                     Text("这是一段辅助说明文字，支持 **Markdown**")
                         .font(.footnote)
@@ -73,7 +75,7 @@ struct ContentView: View {
                 // 文本输入
                 Section("文本输入") {
                     TextField("输入一些文字...", text: $textInput)
-                        .textFieldStyle(.roundedBorder)
+
                     Text("你输入了：\(textInput)")
                         .font(.caption)
                 }
@@ -95,25 +97,28 @@ struct ContentView: View {
 
                 // 滑块
                 Section("滑块") {
-                    Slider(value: $volume, in: 0...100) {
+                    Slider(
+                        value: $volume,
+                        in: 0...100
+                    ) {
                         Text("音量")
                     } minimumValueLabel: {
                         Image(systemName: "speaker.fill")
                     } maximumValueLabel: {
                         Image(systemName: "speaker.wave.3.fill")
                     }
+
                     Text("音量：\(Int(volume))%")
                 }
 
-                // 列表示例
+                // 列表示例（修复版）
                 Section("列表") {
-                    List {
-                        ForEach(1..<4) { index in
-                            HStack {
-                                Image(systemName: "star.fill")
-                                    .foregroundColor(.yellow)
-                                Text("第 \(index) 项")
-                            }
+                    ForEach(1..<4, id: \.self) { index in
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundStyle(.yellow)
+
+                            Text("第 \(index) 项")
                         }
                     }
                 }
