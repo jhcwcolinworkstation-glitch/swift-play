@@ -456,7 +456,14 @@ class APIService {
                        let delta = first["delta"] as? [String: Any] {
                         if let content = delta["content"] as? String {
                             fullContent += content
-                            DispatchQueue.main.async { onChunk(fullContent, reasoningContent) }
+                            let currentFull = fullContent
+let currentReasoning = reasoningContent
+let currentFull = fullContent
+let currentReasoning = reasoningContent
+
+DispatchQueue.main.async {
+    onChunk(currentFull, currentReasoning)
+}
                         }
                         if let reasoning = delta["reasoning_content"] as? String {
                             reasoningContent += reasoning
@@ -1298,11 +1305,14 @@ struct ImagePicker: UIViewControllerRepresentable {
                 return
             }
             provider.loadObject(ofClass: UIImage.self) { image, _ in
-                DispatchQueue.main.async {
-                    self.parent.selectedImage = image as? UIImage
-                    self.parent.isPresented = false
-                }
-            }
+
+    let selectedImage = image as? UIImage
+
+    DispatchQueue.main.async {
+        self.parent.selectedImage = selectedImage
+        self.parent.isPresented = false
+    }
+}
         }
     }
 }
