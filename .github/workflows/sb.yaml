@@ -115,6 +115,7 @@ jobs:
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
                   SWIFT_VERSION: "6.0"
                   SWIFT_STRICT_CONCURRENCY: "minimal"
+                  OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -disable-actor-data-race-checks"
 
                   TARGETED_DEVICE_FAMILY: "1"
 
