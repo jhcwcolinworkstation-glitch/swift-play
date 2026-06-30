@@ -114,6 +114,7 @@ jobs:
                   INFOPLIST_FILE: Info.plist
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
                   SWIFT_VERSION: "6.0"
+                  SWIFT_STRICT_CONCURRENCY: "minimal"
 
                   TARGETED_DEVICE_FAMILY: "1"
 
