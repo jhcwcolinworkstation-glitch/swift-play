@@ -738,6 +738,66 @@ struct MessageBubbleView: View {
 
     @State private var webViewHeight: CGFloat = 50
 
+    // 拆分后的内容容器
+    private var messageContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
+                .frame(height: max(40, webViewHeight))
+
+            if let attachments = message.attachments, !attachments.isEmpty {
+                attachmentsScrollView(attachments)
+            }
+
+            if let images = message.generatedImages, !images.isEmpty {
+                generatedImagesScrollView(images)
+            }
+        }
+    }
+
+    private func attachmentsScrollView(_ attachments: [Attachment]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(attachments) { att in
+                    if att.isImage, let url = att.fullDataUrl, let data = try? Data(contentsOf: URL(string: url)!), let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 80, height: 80)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                    } else {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc").font(.caption)
+                            Text(att.name).font(.caption).lineLimit(1)
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(Color.gray.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func generatedImagesScrollView(_ images: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(images, id: \.self) { img in
+                    if let data = try? Data(contentsOf: URL(string: img)!), let uiImage = UIImage(data: data) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 120, height: 120)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
     var body: some View {
         let isUser = message.role == .user
         VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
@@ -751,67 +811,16 @@ struct MessageBubbleView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
-                    .frame(height: max(40, webViewHeight))
-
-                if let attachments = message.attachments, !attachments.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(attachments) { att in
-                                if att.isImage, let url = att.fullDataUrl, let data = try? Data(contentsOf: URL(string: url)!), let uiImage = UIImage(data: data) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 80, height: 80)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                                } else {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "doc")
-                                            .font(.caption)
-                                        Text(att.name)
-                                            .font(.caption)
-                                            .lineLimit(1)
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.gray.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-
-                if let images = message.generatedImages, !images.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(images, id: \.self) { img in
-                                if let data = try? Data(contentsOf: URL(string: img)!), let uiImage = UIImage(data: data) {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 120, height: 120)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                isUser
-                    ? (isDark ? Color.blue.opacity(0.3) : Color.blue.opacity(0.1))
-                    : (isDark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.05))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(isUser ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 0.5))
+            messageContent
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    isUser
+                        ? (isDark ? Color.blue.opacity(0.3) : Color.blue.opacity(0.1))
+                        : (isDark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.05))
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(isUser ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 0.5))
 
             if !isUser {
                 HStack(spacing: 12) {
