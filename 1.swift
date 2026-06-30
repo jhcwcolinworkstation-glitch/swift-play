@@ -729,32 +729,11 @@ struct MessageWebView: UIViewRepresentable {
     }
 }
 
-struct MessageBubbleView: View {
-    let message: Message
-    let isDark: Bool
-    let onRetry: (() -> Void)?
-    let onCopy: (() -> Void)?
-    let onDownload: (() -> Void)?
+// 为避免类型检查超时，将附件和生成图片的视图拆分为独立结构体
 
-    @State private var webViewHeight: CGFloat = 50
-
-    // 拆分后的内容容器
-    private var messageContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
-                .frame(height: max(40, webViewHeight))
-
-            if let attachments = message.attachments, !attachments.isEmpty {
-                attachmentsScrollView(attachments)
-            }
-
-            if let images = message.generatedImages, !images.isEmpty {
-                generatedImagesScrollView(images)
-            }
-        }
-    }
-
-    private func attachmentsScrollView(_ attachments: [Attachment]) -> some View {
+struct AttachmentsScrollView: View {
+    let attachments: [Attachment]
+    var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(attachments) { att in
@@ -779,8 +758,11 @@ struct MessageBubbleView: View {
             .padding(.vertical, 4)
         }
     }
+}
 
-    private func generatedImagesScrollView(_ images: [String]) -> some View {
+struct GeneratedImagesScrollView: View {
+    let images: [String]
+    var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(images, id: \.self) { img in
@@ -797,6 +779,16 @@ struct MessageBubbleView: View {
             .padding(.vertical, 4)
         }
     }
+}
+
+struct MessageBubbleView: View {
+    let message: Message
+    let isDark: Bool
+    let onRetry: (() -> Void)?
+    let onCopy: (() -> Void)?
+    let onDownload: (() -> Void)?
+
+    @State private var webViewHeight: CGFloat = 50
 
     var body: some View {
         let isUser = message.role == .user
@@ -811,16 +803,28 @@ struct MessageBubbleView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            messageContent
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    isUser
-                        ? (isDark ? Color.blue.opacity(0.3) : Color.blue.opacity(0.1))
-                        : (isDark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.05))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(isUser ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 0.5))
+            // 内容容器（直接内联，避免复杂计算属性）
+            VStack(alignment: .leading, spacing: 8) {
+                MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
+                    .frame(height: max(40, webViewHeight))
+
+                if let attachments = message.attachments, !attachments.isEmpty {
+                    AttachmentsScrollView(attachments: attachments)
+                }
+
+                if let images = message.generatedImages, !images.isEmpty {
+                    GeneratedImagesScrollView(images: images)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                isUser
+                    ? (isDark ? Color.blue.opacity(0.3) : Color.blue.opacity(0.1))
+                    : (isDark ? Color.gray.opacity(0.2) : Color.gray.opacity(0.05))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(isUser ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 0.5))
 
             if !isUser {
                 HStack(spacing: 12) {
@@ -849,7 +853,8 @@ struct MessageBubbleView: View {
     }
 }
 
-// MARK: - 输入区域（已优化高度对齐）
+// MARK: - 输入区域
+
 struct InputAreaView: View {
     @ObservedObject var appState: AppState
     @Binding var inputText: String
@@ -937,7 +942,7 @@ struct InputAreaView: View {
                     .background(Color.clear)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .frame(minHeight: 36, maxHeight: 120)   // ← 总高度最小36，与按钮等高
+                    .frame(minHeight: 36, maxHeight: 120)
                     .background(Color.gray.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .focused($isFocused)
@@ -992,6 +997,7 @@ struct InputAreaView: View {
 }
 
 // MARK: - 对话列表
+
 struct ChatListView: View {
     @ObservedObject var appState: AppState
     @Binding var showingSidebar: Bool
@@ -1060,6 +1066,7 @@ struct ChatListView: View {
 }
 
 // MARK: - 设置视图
+
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
@@ -1264,6 +1271,7 @@ struct SettingsView: View {
 }
 
 // MARK: - 图片选择器
+
 struct ImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImage: UIImage?
     @Binding var isPresented: Bool
@@ -1302,6 +1310,7 @@ struct ImagePicker: UIViewControllerRepresentable {
 }
 
 // MARK: - 主视图
+
 struct ContentView: View {
     @StateObject private var appState = AppState()
     @State private var inputText = ""
@@ -1626,6 +1635,7 @@ struct ContentView: View {
 }
 
 // MARK: - 聊天视图
+
 struct ChatView: View {
     @ObservedObject var appState: AppState
     @Binding var inputText: String
