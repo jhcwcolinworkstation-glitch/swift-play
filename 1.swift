@@ -729,8 +729,7 @@ struct MessageWebView: UIViewRepresentable {
     }
 }
 
-// 为避免类型检查超时，将附件和生成图片的视图拆分为独立结构体
-
+// 独立子视图以避免类型检查超时
 struct AttachmentsScrollView: View {
     let attachments: [Attachment]
     var body: some View {
@@ -803,7 +802,6 @@ struct MessageBubbleView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // 内容容器（直接内联，避免复杂计算属性）
             VStack(alignment: .leading, spacing: 8) {
                 MessageWebView(content: message.content, isDark: isDark, height: $webViewHeight)
                     .frame(height: max(40, webViewHeight))
