@@ -458,8 +458,6 @@ class APIService {
                             fullContent += content
                             let currentFull = fullContent
 let currentReasoning = reasoningContent
-let currentFull = fullContent
-let currentReasoning = reasoningContent
 
 DispatchQueue.main.async {
     onChunk(currentFull, currentReasoning)
