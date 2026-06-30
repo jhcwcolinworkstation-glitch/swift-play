@@ -33,7 +33,7 @@ jobs:
 
       - name: Create Info.plist
         run: |
-          cat > Info.plist <<EOF
+          cat > Info.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
           "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -41,13 +41,13 @@ jobs:
           <dict>
 
           <key>CFBundleExecutable</key>
-          <string>\$(EXECUTABLE_NAME)</string>
+          <string>$(EXECUTABLE_NAME)</string>
 
           <key>CFBundleIdentifier</key>
-          <string>\$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+          <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 
           <key>CFBundleName</key>
-          <string>\$(PRODUCT_NAME)</string>
+          <string>$(PRODUCT_NAME)</string>
 
           <key>CFBundlePackageType</key>
           <string>APPL</string>
@@ -83,14 +83,13 @@ jobs:
               <string>UIInterfaceOrientationPortrait</string>
           </array>
 
-
           </dict>
           </plist>
           EOF
 
       - name: Create project.yml
         run: |
-          cat > project.yml <<EOF
+          cat > project.yml <<'EOF'
           name: DemoApp
 
           options:
@@ -115,7 +114,8 @@ jobs:
                   PRODUCT_BUNDLE_IDENTIFIER: com.example.demoapp
                   SWIFT_VERSION: "6.0"
                   SWIFT_STRICT_CONCURRENCY: "minimal"
-                  OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -disable-actor-data-race-checks -Xfrontend -expression-type-checking-timeout=60000"
+                  OTHER_SWIFT_FLAGS: "$(inherited) -Xfrontend -disable-actor-data-race-checks"
+                  SWIFT_OPTIMIZATION_LEVEL: "-Onone"
 
                   TARGETED_DEVICE_FAMILY: "1"
 
